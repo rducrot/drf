@@ -1,11 +1,25 @@
 from rest_framework.viewsets import ReadOnlyModelViewSet
+from rest_framework.response import Response
+from rest_framework.decorators import action
 
 from shop.models import Category, Product, Article
 from shop.serializers import CategoryListSerializer, CategoryDetailSerializer,\
     ProductListSerializer, ProductDetailSerializer, ArticleSerializer
 
 
-class CategoryViewSet(ReadOnlyModelViewSet):
+class MultipleSerializerMixin:
+    detail_serializer_class = None
+
+    def get_serializer_class(self):
+        # Notre mixin détermine quel serializer à utiliser
+        # même si elle ne sait pas ce que c'est ni comment l'utiliser
+        if self.action == 'retrieve' and self.detail_serializer_class is not None:
+            # Si l'action demandée est le détail alors nous retournons le serializer de détail
+            return self.detail_serializer_class
+        return super().get_serializer_class()
+
+
+class CategoryViewSet(MultipleSerializerMixin, ReadOnlyModelViewSet):
 
     serializer_class = CategoryListSerializer
     detail_serializer_class = CategoryDetailSerializer
@@ -13,13 +27,13 @@ class CategoryViewSet(ReadOnlyModelViewSet):
     def get_queryset(self):
         return Category.objects.filter(active=True)
 
-    def get_serializer_class(self):
-        if self.action == 'retrieve':
-            return self.detail_serializer_class
-        return super().get_serializer_class()
+    @action(detail=True, methods=['post'])
+    def disable(self, request, pk):
+        self.get_object().disable()
+        return Response()
 
 
-class ProductViewSet(ReadOnlyModelViewSet):
+class ProductViewSet(MultipleSerializerMixin, ReadOnlyModelViewSet):
 
     serializer_class = ProductListSerializer
     detail_serializer_class = ProductDetailSerializer
@@ -30,11 +44,6 @@ class ProductViewSet(ReadOnlyModelViewSet):
         if category_id:
             queryset = queryset.filter(category_id=category_id)
         return queryset
-
-    def get_serializer_class(self):
-        if self.action == 'retrieve':
-            return self.detail_serializer_class
-        return super().get_serializer_class()
 
 
 class ArticleViewSet(ReadOnlyModelViewSet):
